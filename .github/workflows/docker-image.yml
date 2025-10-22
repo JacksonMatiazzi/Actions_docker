@@ -1,0 +1,51 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  REPOSITORY: app-registry          # crie antes no Artifact Registry
+  SERVICE_NAME: meucrud-api         # nome do serviço no Cloud Run
+  IMAGE_NAME: ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Docker auth (Artifact Registry)
+        run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+
+      - name: Build
+        run: docker build -t "$IMAGE_NAME" .
+
+      - name: Push
+        run: docker push "$IMAGE_NAME"
+
+      - name: Deploy
+        run: |
+          gcloud run deploy "$SERVICE_NAME" \
+            --image "$IMAGE_NAME" \
+            --region "$REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 512Mi \
+            --min-instances 0 --max-instances 3 \
+            --set-env-vars "POSTGRES_CONNECTION_STRING=${{ secrets.POSTGRES_CONNECTION_STRING }}"
