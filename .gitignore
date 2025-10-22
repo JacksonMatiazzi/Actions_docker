@@ -1,0 +1,17 @@
+# Build e artefatos
+bin/
+obj/
+.vs/
+
+# Configs sensíveis
+appsettings.json
+appsettings.*.json
+
+# VS / usuário
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
